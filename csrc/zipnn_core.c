@@ -590,10 +590,15 @@ continue_processing:
   }
 
   // gettimeofday(&startTimeReal, NULL);
-  // Create Python buffer view
-  Py_buffer view; // create buffer to avoid copy
-  PyBuffer_FillInfo(&view, NULL, resultBuf, resBufSize, 0, PyBUF_WRITABLE);
-  py_result = PyMemoryView_FromBuffer(&view);
+  // Create Python bytes object that owns the memory (fixes memory leak)
+  // PyBytes_FromStringAndSize copies data and manages memory automatically
+  py_result = PyBytes_FromStringAndSize((char *)resultBuf, resBufSize);
+  free(resultBuf);  // Free the original malloc'd buffer after copying to Python object
+  
+  if (py_result == NULL) {
+    // PyBytes_FromStringAndSize failed (likely out of memory)
+    goto compression_error;
+  }
 
   // gettimeofday(&endTimeReal, NULL);
   // double freeTimeReal = (endTimeReal.tv_sec - startTimeReal.tv_sec) +
@@ -647,6 +652,10 @@ continue_processing:
     free(compChunksSize);
   }
 
+  // Release Py_buffer references (fixes memory leak)
+  PyBuffer_Release(&header);
+  PyBuffer_Release(&data);
+
   return py_result;
 
   // Handle Error
@@ -698,6 +707,9 @@ continue_processing:
       }
       free(compChunksSize);
     }
+    // Release Py_buffer references (fixes memory leak)
+    PyBuffer_Release(&header);
+    PyBuffer_Release(&data);
     return NULL;
 }
 
@@ -1120,10 +1132,17 @@ cleanup_threads:
   // clock_t sT, eT;
   // sT = clock();
 
-  Py_buffer view; // create buffer to avoid copy
 continue_processing:
-  PyBuffer_FillInfo(&view, NULL, resultBuf, origSize, 0, PyBUF_WRITABLE);
-  py_result = PyMemoryView_FromBuffer(&view);
+  // Create Python bytes object that owns the memory (fixes memory leak)
+  // PyBytes_FromStringAndSize copies data and manages memory automatically
+  py_result = PyBytes_FromStringAndSize((char *)resultBuf, origSize);
+  free(resultBuf);  // Free the original malloc'd buffer after copying to Python object
+  resultBuf = NULL;  // Prevent double-free in error handling
+  
+  if (py_result == NULL) {
+    // PyBytes_FromStringAndSize failed (likely out of memory)
+    goto decompression_error;
+  }
   // eT = clock();
   // double resultTime = (double)(eT - sT) / CLOCKS_PER_SEC;
   //   printf ("resultTime %f\n", resultTime);
@@ -1137,8 +1156,9 @@ continue_processing:
   // double freeTime = (double)(eT - sT) / CLOCKS_PER_SEC;
   //   printf ("free %f\n", freeTime);
 
-  //  free(resultBuf);
-  //  PyBuffer_Release(&data);
+  // Release Py_buffer reference (fixes memory leak)
+  PyBuffer_Release(&data);
+
   return py_result;
 
   // Handle Error
@@ -1160,5 +1180,7 @@ continue_processing:
   if (resultBuf) {
     free(resultBuf);	  
   }
+  // Release Py_buffer reference (fixes memory leak)
+  PyBuffer_Release(&data);
   return NULL;
 }
