@@ -590,8 +590,9 @@ continue_processing:
   }
 
   // gettimeofday(&startTimeReal, NULL);
-  // Create Python bytes object that owns the memory (fixes memory leak)
-  // PyBytes_FromStringAndSize copies data and manages memory automatically
+  // Create Python bytes object that owns the memory (fixes memory leak).
+  // PyBytes_FromStringAndSize copies data and manages memory automatically.
+  // Compress path returns immutable bytes (hashable, suitable for storage/transmission).
   py_result = PyBytes_FromStringAndSize((char *)resultBuf, resBufSize);
   free(resultBuf);  // Free the original malloc'd buffer after copying to Python object
   
@@ -1133,14 +1134,16 @@ cleanup_threads:
   // sT = clock();
 
 continue_processing:
-  // Create Python bytes object that owns the memory (fixes memory leak)
-  // PyBytes_FromStringAndSize copies data and manages memory automatically
-  py_result = PyBytes_FromStringAndSize((char *)resultBuf, origSize);
+  // Create mutable Python bytearray that owns the memory (fixes memory leak).
+  // Using PyByteArray (mutable) instead of PyBytes (immutable) so that
+  // np.frombuffer() yields a writable array and torch.from_numpy() won't
+  // emit a "non-writable tensor" UserWarning.
+  py_result = PyByteArray_FromStringAndSize((char *)resultBuf, origSize);
   free(resultBuf);  // Free the original malloc'd buffer after copying to Python object
   resultBuf = NULL;  // Prevent double-free in error handling
   
   if (py_result == NULL) {
-    // PyBytes_FromStringAndSize failed (likely out of memory)
+    // PyByteArray_FromStringAndSize failed (likely out of memory)
     goto decompression_error;
   }
   // eT = clock();
