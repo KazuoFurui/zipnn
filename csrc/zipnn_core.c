@@ -590,14 +590,11 @@ continue_processing:
   }
 
   // gettimeofday(&startTimeReal, NULL);
-  // Create Python bytes object that owns the memory (fixes memory leak).
-  // PyBytes_FromStringAndSize copies data and manages memory automatically.
-  // Compress path returns immutable bytes (hashable, suitable for storage/transmission).
+  // Create Python bytes object (copies data, frees original)
   py_result = PyBytes_FromStringAndSize((char *)resultBuf, resBufSize);
-  free(resultBuf);  // Free the original malloc'd buffer after copying to Python object
+  free(resultBuf);
   
   if (py_result == NULL) {
-    // PyBytes_FromStringAndSize failed (likely out of memory)
     goto compression_error;
   }
 
@@ -653,7 +650,7 @@ continue_processing:
     free(compChunksSize);
   }
 
-  // Release Py_buffer references (fixes memory leak)
+  // Release Py_buffer references
   PyBuffer_Release(&header);
   PyBuffer_Release(&data);
 
@@ -708,7 +705,7 @@ continue_processing:
       }
       free(compChunksSize);
     }
-    // Release Py_buffer references (fixes memory leak)
+    // Release Py_buffer references
     PyBuffer_Release(&header);
     PyBuffer_Release(&data);
     return NULL;
@@ -1134,16 +1131,13 @@ cleanup_threads:
   // sT = clock();
 
 continue_processing:
-  // Create mutable Python bytearray that owns the memory (fixes memory leak).
-  // Using PyByteArray (mutable) instead of PyBytes (immutable) so that
-  // np.frombuffer() yields a writable array and torch.from_numpy() won't
-  // emit a "non-writable tensor" UserWarning.
+  // Create mutable Python bytearray (copies data, frees original).
+  // bytearray is mutable so np.frombuffer / torch.from_numpy stay writable.
   py_result = PyByteArray_FromStringAndSize((char *)resultBuf, origSize);
-  free(resultBuf);  // Free the original malloc'd buffer after copying to Python object
+  free(resultBuf);
   resultBuf = NULL;  // Prevent double-free in error handling
   
   if (py_result == NULL) {
-    // PyByteArray_FromStringAndSize failed (likely out of memory)
     goto decompression_error;
   }
   // eT = clock();
@@ -1159,7 +1153,7 @@ continue_processing:
   // double freeTime = (double)(eT - sT) / CLOCKS_PER_SEC;
   //   printf ("free %f\n", freeTime);
 
-  // Release Py_buffer reference (fixes memory leak)
+  // Release Py_buffer reference
   PyBuffer_Release(&data);
 
   return py_result;
@@ -1183,7 +1177,7 @@ continue_processing:
   if (resultBuf) {
     free(resultBuf);	  
   }
-  // Release Py_buffer reference (fixes memory leak)
+  // Release Py_buffer reference
   PyBuffer_Release(&data);
   return NULL;
 }
