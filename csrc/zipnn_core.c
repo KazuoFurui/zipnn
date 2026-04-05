@@ -1,9 +1,9 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <assert.h>
-#include <pthread.h>
+#include "pthread.h"
 #include <stdint.h>
-#include <sys/time.h>
+#include "pthread.h"
 #include <time.h>
 #include "data_manipulation_dtype16.h"
 #include "data_manipulation_dtype32.h"
@@ -302,7 +302,7 @@ static void *compression_worker(void *arg) {
 
     if (thread_data->numBuf == 1) {
       // NEW: FP8 handeling
-      if(split_bytearray_dtype8(thread_data->data->buf + offset, curOrigChunkSize,thread_data->buffers[current_chunk],thread_data->unCompChunksSize[current_chunk],thread_data->bytes_mode)!=0){
+      if(split_bytearray_dtype8((uint8_t *)(uint8_t *)thread_data->data->buf + offset, curOrigChunkSize,thread_data->buffers[current_chunk],thread_data->unCompChunksSize[current_chunk],thread_data->bytes_mode)!=0){
         pthread_exit((void *)-1);
       }
     } 
@@ -310,7 +310,7 @@ static void *compression_worker(void *arg) {
     else if (thread_data->numBuf == 2) {
       // Handle 16-bit data type splitting
       if (split_bytearray_dtype16(
-              thread_data->data->buf + offset, curOrigChunkSize,
+              (uint8_t *)(uint8_t *)thread_data->data->buf + offset, curOrigChunkSize,
               thread_data->buffers[current_chunk],
               thread_data->unCompChunksSize[current_chunk],
               thread_data->bits_mode, thread_data->bytes_mode,
@@ -320,7 +320,7 @@ static void *compression_worker(void *arg) {
     } else { // numBuf == 4
       // Handle 32-bit data type splitting
       if (split_bytearray_dtype32(
-              thread_data->data->buf + offset, curOrigChunkSize,
+              (uint8_t *)(uint8_t *)thread_data->data->buf + offset, curOrigChunkSize,
               thread_data->buffers[current_chunk],
               thread_data->unCompChunksSize[current_chunk],
               thread_data->bits_mode, thread_data->bytes_mode,

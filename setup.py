@@ -1,26 +1,23 @@
 from setuptools import setup, find_packages, Extension
-import subprocess
-import os
+import sys
 
+# 🔥 魔法のモンキーパッチ：cl.exeが呼ばれる瞬間にclang-clにすり替える 🔥
+if sys.platform.startswith("win"):
+    import distutils._msvccompiler
+    old_spawn = distutils._msvccompiler.MSVCCompiler.spawn
+    def clang_spawn(self, cmd, **kwargs):
+        if isinstance(cmd, list) and len(cmd) > 0:
+            if 'cl.exe' in cmd[0] or cmd[0] == 'cl':
+                cmd[0] = 'clang-cl'  # 強制すり替え
+        return old_spawn(self, cmd, **kwargs)
+    distutils._msvccompiler.MSVCCompiler.spawn = clang_spawn
 
-def update_submodules():
-    if os.path.exists(".git"):
-        try:
-            subprocess.check_call(["git", "submodule", "update", "--init", "--recursive"])
-        except subprocess.CalledProcessError as e:
-            print(f"Failed to update submodules: {e}")
-            raise
-
-
-update_submodules()
-
-zipnn_core_extension = Extension(
-    "zipnn_core",
+compile_args = ["/O2", "/MD"] if sys.platform.startswith("win") else ["-O3"]
+zipnn_core_ext = Extension(
+    "zipnn.zipnn_core",
     sources=[
-        "csrc/zipnn_core_module.c",
-        "csrc/zipnn_core.c",
-        "csrc/data_manipulation_dtype16.c",
-        "csrc/data_manipulation_dtype32.c",
+        "csrc/zipnn_core_module.c", "csrc/zipnn_core.c",
+        "csrc/data_manipulation_dtype16.c", "csrc/data_manipulation_dtype32.c",
         "include/FiniteStateEntropy/lib/fse_compress.c",
         "include/FiniteStateEntropy/lib/fse_decompress.c",
         "include/FiniteStateEntropy/lib/huf_compress.c",
@@ -29,29 +26,12 @@ zipnn_core_extension = Extension(
         "include/FiniteStateEntropy/lib/hist.c",
     ],
     include_dirs=["include/FiniteStateEntropy/lib/", "csrc/"],
-    extra_compile_args=["-O3", "-Wall", "-Wextra"],
-    extra_link_args=["-O3", "-Wall", "-Wextra"],
+    extra_compile_args=compile_args,
 )
 
 setup(
-    name="zipnn",
-    version="0.5.3",
-    author="ZipNN Contributors",
-    description="A Lossless Compression Library for AI pipelines",
-    long_description=open("README.md").read(),
-    long_description_content_type="text/markdown",
-    url="https://github.com/zipnn/zipnn",
+    name="zipnn", version="0.5.3",
     packages=find_packages(include=["zipnn", "zipnn.*"]),
-    classifiers=[
-        "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
-        "Operating System :: OS Independent",
-    ],
-    python_requires=">=3.6",
-    install_requires=[
-        'numpy>=1.17.0',
-        'safetensors>=0.4.0',
-        "torch>=2.0.0",
-    ],
-    ext_modules=[zipnn_core_extension],  # Add the C extension module here
+    ext_modules=[zipnn_core_ext],
+    install_requires=['numpy>=1.17.0', 'safetensors>=0.4.0', 'torch>=2.0.0'],
 )

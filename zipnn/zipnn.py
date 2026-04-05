@@ -5,7 +5,7 @@ import multiprocessing
 import numpy as np
 from safetensors.torch import safe_open
 import torch
-import zipnn_core
+from . import zipnn_core
 from zipnn.util_header import EnumMethod, EnumFormat, EnumLossy
 from zipnn.util_torch import (
     ZipNNDtypeEnum,
